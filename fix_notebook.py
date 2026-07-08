@@ -1,24 +1,43 @@
 import json
+import glob
+import os
 
-with open(r'c:\RAG_Article\Self_RAG.ipynb', 'r', encoding='utf-8') as f:
-    nb = json.load(f)
+notebooks = glob.glob(r'c:\RAG_Article\*.ipynb')
+print(f"Found {len(notebooks)} notebooks\n")
 
-widget_key = 'application/vnd.jupyter.widget-state+json'
-w = nb['metadata']['widgets'][widget_key]
+for nb_path in notebooks:
+    name = os.path.basename(nb_path)
+    with open(nb_path, 'r', encoding='utf-8') as f:
+        nb = json.load(f)
 
-print("Keys in widget-state+json:", list(w.keys())[:5], "...")
-print("'state' in w:", 'state' in w)
+    metadata = nb.get('metadata', {})
+    widgets = metadata.get('widgets', None)
+    
+    if widgets is None:
+        print(f"  {name}: No widgets metadata - SKIP")
+        continue
+    
+    widget_key = 'application/vnd.jupyter.widget-state+json'
+    if widget_key not in widgets:
+        print(f"  {name}: No widget-state+json key - SKIP")
+        continue
+    
+    w = widgets[widget_key]
+    if 'state' in w:
+        print(f"  {name}: Already has 'state' key - OK")
+        continue
+    
+    # Fix: wrap widget entries in a "state" key
+    nb['metadata']['widgets'][widget_key] = {
+        "state": w,
+        "version_major": 2,
+        "version_minor": 0
+    }
+    
+    with open(nb_path, 'w', encoding='utf-8', newline='\n') as f:
+        json.dump(nb, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+    
+    print(f"  {name}: FIXED (wrapped {len(w)} widget entries in 'state' key)")
 
-# The fix: GitHub expects {"state": {...widgets...}} but we have the widgets directly
-# Wrap the current content in a "state" key
-if 'state' not in w:
-    nb['metadata']['widgets'][widget_key] = {"state": w, "version_major": 2, "version_minor": 0}
-    print("Fixed: wrapped widget entries in 'state' key")
-else:
-    print("Already has 'state' key, no fix needed")
-
-with open(r'c:\RAG_Article\Self_RAG.ipynb', 'w', encoding='utf-8', newline='\n') as f:
-    json.dump(nb, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-
-print("Saved!")
+print("\nDone!")
